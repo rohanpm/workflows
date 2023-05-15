@@ -1,0 +1,64 @@
+name: Release to PyPI
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: GitHub runner used for job.
+        required: false
+        type: string
+        default: ubuntu-22.04
+
+      python-version:
+        description: Python version used to perform build.
+        required: false
+        type: string
+        default: '3.11'
+
+      name:
+        description: PyPI project name.
+        required: true
+        type: string
+
+jobs:
+  pypi-publish:
+    name: Upload release to PyPI
+    runs-on: ${{ inputs.runs-on }}
+    environment:
+      name: pypi
+      url: https://pypi.org/p/${{ inputs.name }}
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install -U pip
+        pip install build
+
+    - name: Build distribution
+      run: |
+        python -mbuild
+
+    - name: Prepare for wheel check
+      run: |
+        pip download --no-deps --only-binary :all: --implementation py --platform none ${{ inputs.name }}
+        pip install .
+
+    - name: Check if wheel content changed
+      id: wheeldiff
+      run: |
+        set +e
+        set -x
+        wheeldiff --ignore version,record *.whl dist/*.whl
+        echo "diff=$?" >> "$GITHUB_OUTPUT"
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      if: steps.wheeldiff.outputs.diff == '2'
