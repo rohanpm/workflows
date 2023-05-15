@@ -1,0 +1,21 @@
+on:
+  workflow_call:
+
+name: 'pip-compile: submit PR'
+jobs:
+  pip_compile_submit:
+    name: pip-compile submit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Look up pull request
+      uses: juliangruber/find-pull-request-action@v1
+      id: find-pull-request
+      with:
+        branch: deps/pip-compile
+    - name: Merge Pull Request
+      uses: juliangruber/merge-pull-request-action@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        number: ${{ steps.find-pull-request.outputs.number }}
+        method: merge
+      if: ${{ steps.find-pull-request.outputs.number }}

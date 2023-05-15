@@ -1,0 +1,91 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: GitHub runner used for job.
+        required: false
+        type: string
+        default: ubuntu-22.04
+
+      native-packages:
+        description: Additional OS packages to install.
+        required: false
+        type: string
+        default: ''
+
+      python-version:
+        description: Python version(s) to be installed before running tox.
+        required: false
+        type: string
+        default: |
+          3.8
+          3.9
+          3.10
+          3.11
+
+      tox-requirement:
+        description: pip requirement specifier for installing tox.
+        required: false
+        type: string
+        default: tox
+
+    secrets:
+      pip-compile-token:
+        description: Token used when creating pull requests.
+        required: true
+
+      approval-token:
+        description: Token used to auto-approve generated pull requests.
+        required: false
+
+name: 'pip-compile: create PR'
+jobs:
+  pip_compile:
+    name: pip-compile
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+    - name: Update packages
+      run: |
+        sudo apt-get update
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install native packages
+      run: |
+        sudo apt-get install -y ${{ inputs.native-packages }}
+      if: inputs.native-packages != ''
+
+    - name: Install tox
+      run: pip install ${{ inputs.tox-requirement }}
+
+    - name: pip-compile
+      uses: technote-space/create-pr-action@v2
+      with:
+        EXECUTE_COMMANDS: tox run -m pip-compile
+        COMMIT_MESSAGE: 'chore: scheduled pip-compile'
+        COMMIT_NAME: GitHub Actions
+        COMMIT_EMAIL: noreply@github.com
+        GITHUB_TOKEN: ${{ secrets.pip-compile-token }}
+        PR_BRANCH_PREFIX: deps/
+        PR_BRANCH_NAME: pip-compile
+        PR_TITLE: 'chore: scheduled pip-compile'
+        PR_BODY: "## Update dependencies\nThis is a scheduled update of Python dependencies within this repo managed by pip-compile.\nThis change will be submitted automatically within a few days if all checks have succeeded."
+
+    - name: Look up pull request
+      uses: juliangruber/find-pull-request-action@v1
+      id: find-pull-request
+      with:
+        branch: deps/pip-compile
+
+    # Immediately approve it if we can so it can be merged later
+    - name: Approve Pull Request
+      uses: juliangruber/approve-pull-request-action@v1
+      with:
+        github-token: ${{ secrets.approval-token }}
+        number: ${{ steps.find-pull-request.outputs.number }}
+      # allow errors because token may be unset.
+      continue-on-error: true
+      if: ${{ steps.find-pull-request.outputs.number }}
