@@ -1,0 +1,58 @@
+name: tox
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: GitHub runner used for job.
+        required: false
+        type: string
+        default: ubuntu-22.04
+
+      native-packages:
+        description: Additional OS packages to install.
+        required: false
+        type: string
+        default: ''
+
+      python-version:
+        description: Python version(s) to be installed before running tox.
+        required: false
+        type: string
+        default: |
+          3.8
+          3.9
+          3.10
+          3.11
+
+      tox-requirement:
+        description: pip requirement specifier for installing tox.
+        required: false
+        type: string
+        default: tox
+
+      tox-args:
+        description: Additional arguments to tox.
+        required: false
+        type: string
+        default: --skip-missing-interpreters false
+
+jobs:
+  tox:
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install dependencies
+      run: |
+        pip install ${{ inputs.tox-requirement }}
+
+    - name: Run tests
+      run: |
+        tox ${{ inputs.tox-args }}
